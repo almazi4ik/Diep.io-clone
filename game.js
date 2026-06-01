@@ -3,261 +3,289 @@
     const ctx = canvas.getContext('2d');
     
     let width, height;
-    let animationId;
     let gameRunning = false;
     
-    // Игрок
+    // === ИГРОК (змейка) ===
     let player = {
-        x: 0, y: 0,
-        radius: 30,
-        mass: 30,
-        color: '#ff3366',
-        name: 'Player'
+        segments: [],
+        angle: 0,
+        targetAngle: 0,
+        speed: 5,
+        length: 10,
+        color: "#6fbf4c",
+        name: "Player",
+        isAlive: true
     };
     
-    let mouseX = 0, mouseY = 0;
-    
-    // Мир
+    // Еда (светящиеся точки)
     let foods = [];
-    let bots = [];
-    const FOOD_COUNT = 180;
-    const BOT_COUNT = 25;
-    const WORLD_SIZE = 5000;
+    const FOOD_COUNT = 250;
     
-    // Камера
+    // Боты-змейки
+    let botSnakes = [];
+    const BOT_COUNT = 12;
+    
+    const WORLD_SIZE = 4000;
+    
+    let mouseX = 0, mouseY = 0;
     let camera = { x: 0, y: 0 };
-    
-    // Лидерборд
     let leaderboardList = [];
     
-    // === UTILS ===
+    // === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
     function random(min, max) {
         return min + Math.random() * (max - min);
     }
     
     function randomColor() {
-        const hue = Math.random() * 360;
-        return `hsl(${hue}, 70%, 55%)`;
+        const hues = [90, 120, 150, 180, 210, 240, 300];
+        const hue = hues[Math.floor(Math.random() * hues.length)];
+        return `hsl(${hue}, 75%, 55%)`;
     }
     
     function distance(x1,y1,x2,y2){
-        const dx = x1-x2;
-        const dy = y1-y2;
-        return Math.hypot(dx,dy);
+        return Math.hypot(x1-x2, y1-y2);
     }
     
-    // === ИНИЦИАЛИЗАЦИЯ МИРА ===
+    // === ИНИЦИАЛИЗАЦИЯ ===
     function initWorld(){
+        // Еда
         foods = [];
         for(let i=0;i<FOOD_COUNT;i++){
             foods.push({
-                x: random(100, WORLD_SIZE-100),
-                y: random(100, WORLD_SIZE-100),
-                radius: 6,
-                mass: 6,
-                color: '#ffcc44'
+                x: random(50, WORLD_SIZE-50),
+                y: random(50, WORLD_SIZE-50),
+                radius: 4,
+                value: 1
             });
         }
         
-        bots = [];
+        // Боты
+        botSnakes = [];
         for(let i=0;i<BOT_COUNT;i++){
-            bots.push({
-                x: random(200, WORLD_SIZE-200),
-                y: random(200, WORLD_SIZE-200),
-                radius: 22,
-                mass: 22,
+            const startX = random(300, WORLD_SIZE-300);
+            const startY = random(300, WORLD_SIZE-300);
+            const segments = [];
+            const startAngle = random(0, Math.PI*2);
+            for(let s=0;s<12;s++){
+                segments.push({
+                    x: startX - Math.cos(startAngle) * s * 12,
+                    y: startY - Math.sin(startAngle) * s * 12
+                });
+            }
+            botSnakes.push({
+                segments: segments,
+                angle: startAngle,
+                speed: random(3, 4.5),
+                length: random(10, 25),
                 color: randomColor(),
                 name: `Bot${Math.floor(Math.random()*1000)}`,
-                vx: (Math.random() - 0.5)*1.2,
-                vy: (Math.random() - 0.5)*1.2
+                isAlive: true
             });
         }
     }
     
-    // Съедание еды игроком
+    function initPlayer(nick){
+        player.name = nick || "Slither";
+        player.length = 12;
+        player.speed = 5.2;
+        player.isAlive = true;
+        
+        const startX = WORLD_SIZE/2;
+        const startY = WORLD_SIZE/2;
+        player.segments = [];
+        for(let i=0;i<player.length;i++){
+            player.segments.push({ x: startX - i*12, y: startY });
+        }
+        player.angle = 0;
+        player.targetAngle = 0;
+    }
+    
+    // === ДВИЖЕНИЕ ЗМЕЙКИ ===
+    function updateSnake(snake, isPlayer){
+        if(!snake.isAlive) return;
+        
+        // Для ботов: плавное движение к случайной цели
+        if(!isPlayer){
+            // Бот иногда меняет направление
+            if(Math.random() < 0.02){
+                snake.angle += (Math.random() - 0.5) * 1.2;
+            }
+            // Нормализация угла
+            if(snake.angle > Math.PI*2) snake.angle -= Math.PI*2;
+            if(snake.angle < 0) snake.angle += Math.PI*2;
+        } else {
+            // Игрок: угол от мыши
+            const dx = mouseX - snake.segments[0].x;
+            const dy = mouseY - snake.segments[0].y;
+            snake.targetAngle = Math.atan2(dy, dx);
+            // Плавный поворот
+            let diff = snake.targetAngle - snake.angle;
+            while(diff > Math.PI) diff -= Math.PI*2;
+            while(diff < -Math.PI) diff += Math.PI*2;
+            snake.angle += diff * 0.1;
+        }
+        
+        // Движение головы
+        const head = snake.segments[0];
+        const newX = head.x + Math.cos(snake.angle) * snake.speed;
+        const newY = head.y + Math.sin(snake.angle) * snake.speed;
+        
+        // Границы мира
+        const boundedX = Math.min(Math.max(newX, 10), WORLD_SIZE-10);
+        const boundedY = Math.min(Math.max(newY, 10), WORLD_SIZE-10);
+        
+        snake.segments.unshift({ x: boundedX, y: boundedY });
+        
+        // Обрезка хвоста
+        while(snake.segments.length > snake.length){
+            snake.segments.pop();
+        }
+        
+        // Проверка столкновения с собой
+        const headPos = snake.segments[0];
+        for(let i=2;i<snake.segments.length;i++){
+            const seg = snake.segments[i];
+            if(distance(headPos.x, headPos.y, seg.x, seg.y) < 14){
+                snake.isAlive = false;
+                if(isPlayer){
+                    alert(`💀 Вы врезались в себя! Игра перезапущена.`);
+                    resetGame();
+                }
+                return;
+            }
+        }
+    }
+    
+    // Столкновения змеек между собой
+    function checkSnakeCollisions(){
+        const allSnakes = [{segments: player.segments, isPlayer: true, name: player.name, color: player.color}, ...botSnakes];
+        
+        for(let i=0;i<allSnakes.length;i++){
+            const s1 = allSnakes[i];
+            if(!s1.isAlive && s1.isPlayer === undefined) continue;
+            const head1 = s1.segments[0];
+            
+            for(let j=0;j<allSnakes.length;j++){
+                if(i===j) continue;
+                const s2 = allSnakes[j];
+                if(!s2.isAlive && s2.isPlayer === undefined) continue;
+                
+                // Проверка головы s1 о тело s2
+                for(let k=0;k<s2.segments.length;k++){
+                    const seg = s2.segments[k];
+                    if(distance(head1.x, head1.y, seg.x, seg.y) < 15){
+                        // Если голова врезалась в тело — смерть
+                        if(s1.isPlayer){
+                            alert(`💀 Вас убила змея ${s2.name}!`);
+                            resetGame();
+                            return;
+                        } else {
+                            s1.isAlive = false;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Удаляем мертвых ботов и возрождаем
+        for(let i=0;i<botSnakes.length;i++){
+            if(!botSnakes[i].isAlive){
+                // Возродить бота
+                const startX = random(300, WORLD_SIZE-300);
+                const startY = random(300, WORLD_SIZE-300);
+                const segments = [];
+                const startAngle = random(0, Math.PI*2);
+                for(let s=0;s<12;s++){
+                    segments.push({
+                        x: startX - Math.cos(startAngle) * s * 12,
+                        y: startY - Math.sin(startAngle) * s * 12
+                    });
+                }
+                botSnakes[i] = {
+                    segments: segments,
+                    angle: startAngle,
+                    speed: random(3, 4.5),
+                    length: random(10, 25),
+                    color: randomColor(),
+                    name: `Bot${Math.floor(Math.random()*1000)}`,
+                    isAlive: true
+                };
+            }
+        }
+    }
+    
+    // Еда: съедание головой
     function handleEat(){
+        const head = player.segments[0];
         for(let i=0;i<foods.length;i++){
             const f = foods[i];
-            const dist = distance(player.x, player.y, f.x, f.y);
-            if(dist < player.radius + f.radius){
-                player.mass += f.mass;
-                player.radius = Math.sqrt(player.mass) * 1.5;
+            if(distance(head.x, head.y, f.x, f.y) < 15){
+                player.length += 1;
+                player.speed = Math.max(3.2, 5.5 - (player.length / 200));
                 foods.splice(i,1);
                 foods.push({
-                    x: random(100, WORLD_SIZE-100),
-                    y: random(100, WORLD_SIZE-100),
-                    radius: 6,
-                    mass: 6,
-                    color: '#ffcc44'
+                    x: random(50, WORLD_SIZE-50),
+                    y: random(50, WORLD_SIZE-50),
+                    radius: 4,
+                    value: 1
                 });
                 break;
             }
         }
     }
     
-    // Боты едят еду
+    // Боты тоже едят еду
     function botsEat(){
-        for(let bot of bots){
+        for(let bot of botSnakes){
+            if(!bot.isAlive) continue;
+            const head = bot.segments[0];
             for(let i=0;i<foods.length;i++){
                 const f = foods[i];
-                const dist = distance(bot.x, bot.y, f.x, f.y);
-                if(dist < bot.radius + f.radius){
-                    bot.mass += f.mass;
-                    bot.radius = Math.sqrt(bot.mass) * 1.5;
+                if(distance(head.x, head.y, f.x, f.y) < 15){
+                    bot.length += 1;
+                    bot.speed = Math.max(3, 4.8 - (bot.length / 200));
                     foods.splice(i,1);
                     foods.push({
-                        x: random(100, WORLD_SIZE-100),
-                        y: random(100, WORLD_SIZE-100),
-                        radius: 6,
-                        mass: 6,
-                        color: '#ffcc44'
+                        x: random(50, WORLD_SIZE-50),
+                        y: random(50, WORLD_SIZE-50),
+                        radius: 4,
+                        value: 1
                     });
                     break;
-                }
-            }
-        }
-    }
-    
-    // Боты едят друг друга и игрока
-    function checkEatBetween(){
-        // бот ест бота (если радиус на 15% больше)
-        for(let i=0;i<bots.length;i++){
-            for(let j=0;j<bots.length;j++){
-                if(i===j) continue;
-                const b1 = bots[i];
-                const b2 = bots[j];
-                const dist = distance(b1.x,b1.y,b2.x,b2.y);
-                if(dist < b1.radius + b2.radius){
-                    if(b1.radius > b2.radius * 1.15){
-                        b1.mass += b2.mass;
-                        b1.radius = Math.sqrt(b1.mass) * 1.5;
-                        bots.splice(j,1);
-                        break;
-                    } else if(b2.radius > b1.radius * 1.15){
-                        b2.mass += b1.mass;
-                        b2.radius = Math.sqrt(b2.mass) * 1.5;
-                        bots.splice(i,1);
-                        break;
-                    } else {
-                        // отталкивание
-                        const angle = Math.atan2(b2.y-b1.y, b2.x-b1.x);
-                        const force = 2;
-                        b1.x -= Math.cos(angle)*force;
-                        b1.y -= Math.sin(angle)*force;
-                        b2.x += Math.cos(angle)*force;
-                        b2.y += Math.sin(angle)*force;
-                    }
-                }
-            }
-        }
-        
-        // игрок ест ботов
-        for(let i=0;i<bots.length;i++){
-            const bot = bots[i];
-            const dist = distance(player.x, player.y, bot.x, bot.y);
-            if(dist < player.radius + bot.radius){
-                if(player.radius > bot.radius * 1.15){
-                    player.mass += bot.mass;
-                    player.radius = Math.sqrt(player.mass) * 1.5;
-                    bots.splice(i,1);
-                    bots.push({
-                        x: random(200, WORLD_SIZE-200),
-                        y: random(200, WORLD_SIZE-200),
-                        radius: 22,
-                        mass: 22,
-                        color: randomColor(),
-                        name: `Bot${Math.floor(Math.random()*1000)}`,
-                        vx: (Math.random() - 0.5)*1.2,
-                        vy: (Math.random() - 0.5)*1.2
-                    });
-                    break;
-                } else if(bot.radius > player.radius * 1.15){
-                    // бот съел игрока — перезапуск
-                    alert(`Вас съел ${bot.name}! Игра перезапущена.`);
-                    resetGame();
-                    return;
-                } else {
-                    // упругое столкновение
-                    const angle = Math.atan2(bot.y-player.y, bot.x-player.x);
-                    const force = 2.5;
-                    player.x -= Math.cos(angle)*force;
-                    player.y -= Math.sin(angle)*force;
-                    bot.x += Math.cos(angle)*force;
-                    bot.y += Math.sin(angle)*force;
                 }
             }
         }
     }
     
     function resetGame(){
-        player.mass = 30;
-        player.radius = 30;
-        player.x = WORLD_SIZE/2;
-        player.y = WORLD_SIZE/2;
+        initPlayer(player.name);
         initWorld();
     }
     
-    // Движение ботов (к еде или случайно)
-    function updateBots(){
-        for(let bot of bots){
-            // ищем ближайшую еду
-            let closest = null;
-            let minDist = Infinity;
-            for(let f of foods){
-                const d = distance(bot.x,bot.y,f.x,f.y);
-                if(d<minDist){
-                    minDist = d;
-                    closest = f;
-                }
-            }
-            if(closest){
-                const angle = Math.atan2(closest.y-bot.y, closest.x-bot.x);
-                const speed = Math.min(3.5, 120 / bot.mass);
-                bot.vx += Math.cos(angle) * 0.2;
-                bot.vy += Math.sin(angle) * 0.2;
-                // ограничение скорости
-                const maxSpeed = Math.min(6, 280 / bot.mass);
-                if(Math.abs(bot.vx) > maxSpeed) bot.vx = bot.vx>0?maxSpeed:-maxSpeed;
-                if(Math.abs(bot.vy) > maxSpeed) bot.vy = bot.vy>0?maxSpeed:-maxSpeed;
-            }
-            bot.x += bot.vx;
-            bot.y += bot.vy;
-            // границы мира
-            bot.x = Math.min(Math.max(bot.x, 20), WORLD_SIZE-20);
-            bot.y = Math.min(Math.max(bot.y, 20), WORLD_SIZE-20);
-            if(bot.x<=20 || bot.x>=WORLD_SIZE-20) bot.vx *= -0.8;
-            if(bot.y<=20 || bot.y>=WORLD_SIZE-20) bot.vy *= -0.8;
-        }
+    // === КАМЕРА ===
+    function updateCamera(){
+        if(!player.segments.length) return;
+        const head = player.segments[0];
+        camera.x = head.x - width/2;
+        camera.y = head.y - height/2;
+        camera.x = Math.min(Math.max(camera.x, 0), WORLD_SIZE - width);
+        camera.y = Math.min(Math.max(camera.y, 0), WORLD_SIZE - height);
     }
     
-    // Движение игрока за мышью
-    function updatePlayer(){
-        if(!gameRunning) return;
-        const dx = mouseX - player.x;
-        const dy = mouseY - player.y;
-        const len = Math.hypot(dx,dy);
-        if(len > 0.01){
-            const speed = Math.min(9, 280 / player.mass);
-            const move = Math.min(speed, len);
-            player.x += (dx/len)*move;
-            player.y += (dy/len)*move;
-        }
-        // границы
-        player.x = Math.min(Math.max(player.x, 20), WORLD_SIZE-20);
-        player.y = Math.min(Math.max(player.y, 20), WORLD_SIZE-20);
-    }
-    
-    // Обновление лидерборда
+    // === ЛИДЕРБОРД ===
     function updateLeaderboard(){
-        let entities = [{name: player.name, mass: Math.floor(player.mass), isPlayer:true}];
-        for(let bot of bots){
-            entities.push({name: bot.name, mass: Math.floor(bot.mass), isPlayer:false});
+        let entities = [{name: player.name, length: player.length, isPlayer: true}];
+        for(let bot of botSnakes){
+            if(bot.isAlive){
+                entities.push({name: bot.name, length: bot.length, isPlayer: false});
+            }
         }
-        entities.sort((a,b)=>b.mass - a.mass);
+        entities.sort((a,b)=>b.length - a.length);
         leaderboardList = entities.slice(0,8);
     }
     
-    // Рендер радара (в правом нижнем углу)
+    // === РАДАР ===
     function drawRadar(){
         const radarSize = 130;
         const radarX = canvas.width - radarSize - 20;
@@ -269,59 +297,54 @@
         ctx.rect(radarX, radarY, radarSize, radarSize);
         ctx.fillStyle = 'rgba(0,0,0,0.7)';
         ctx.fill();
-        ctx.strokeStyle = '#0af';
+        ctx.strokeStyle = '#6fbf4c';
         ctx.lineWidth = 1.5;
         ctx.stroke();
         
-        // Преобразование мировых координат в радар
         const scale = radarSize / WORLD_SIZE;
         
-        // еда
+        // Еда
         for(let f of foods){
-            ctx.fillStyle = '#ffaa33';
+            ctx.fillStyle = '#ffff88';
             ctx.beginPath();
-            const rx = radarX + f.x * scale;
-            const ry = radarY + f.y * scale;
-            ctx.arc(rx, ry, 2, 0, Math.PI*2);
+            ctx.arc(radarX + f.x * scale, radarY + f.y * scale, 2, 0, Math.PI*2);
             ctx.fill();
         }
-        // боты
-        for(let bot of bots){
+        
+        // Боты
+        for(let bot of botSnakes){
+            if(!bot.isAlive) continue;
+            const head = bot.segments[0];
             ctx.fillStyle = bot.color;
             ctx.beginPath();
-            const rx = radarX + bot.x * scale;
-            const ry = radarY + bot.y * scale;
-            ctx.arc(rx, ry, 3, 0, Math.PI*2);
+            ctx.arc(radarX + head.x * scale, radarY + head.y * scale, 3, 0, Math.PI*2);
             ctx.fill();
         }
-        // игрок
-        ctx.fillStyle = '#ff3366';
-        ctx.beginPath();
-        const px = radarX + player.x * scale;
-        const py = radarY + player.y * scale;
-        ctx.arc(px, py, 4, 0, Math.PI*2);
-        ctx.fill();
+        
+        // Игрок
+        if(player.segments.length){
+            const head = player.segments[0];
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(radarX + head.x * scale, radarY + head.y * scale, 4, 0, Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle = '#6fbf4c';
+            ctx.font = 'bold 8px monospace';
+            ctx.fillText("YOU", radarX + head.x * scale - 8, radarY + head.y * scale - 5);
+        }
+        
         ctx.fillStyle = 'white';
         ctx.font = 'bold 10px monospace';
         ctx.fillText("РАДАР", radarX+5, radarY+12);
         ctx.restore();
     }
     
-    // Камера
-    function updateCamera(){
-        camera.x = player.x - width/2;
-        camera.y = player.y - height/2;
-        camera.x = Math.min(Math.max(camera.x, 0), WORLD_SIZE - width);
-        camera.y = Math.min(Math.max(camera.y, 0), WORLD_SIZE - height);
-    }
-    
-    // Отрисовка мира
+    // === ОТРИСОВКА ===
     function draw(){
-        if(!ctx) return;
         ctx.clearRect(0,0,width,height);
         
-        // сетка
-        ctx.strokeStyle = '#333';
+        // Сетка
+        ctx.strokeStyle = '#2a5a4a';
         ctx.lineWidth = 0.5;
         const step = 100;
         const startX = Math.floor(camera.x/step)*step;
@@ -339,67 +362,104 @@
             ctx.stroke();
         }
         
-        // еда
+        // Еда
         for(let f of foods){
             ctx.beginPath();
             ctx.arc(f.x-camera.x, f.y-camera.y, f.radius, 0, Math.PI*2);
-            ctx.fillStyle = f.color;
+            ctx.fillStyle = '#ffee88';
             ctx.fill();
-        }
-        // боты
-        for(let bot of bots){
+            ctx.fillStyle = '#ffdd66';
             ctx.beginPath();
-            ctx.arc(bot.x-camera.x, bot.y-camera.y, bot.radius, 0, Math.PI*2);
-            ctx.fillStyle = bot.color;
+            ctx.arc(f.x-camera.x, f.y-camera.y, 2, 0, Math.PI*2);
             ctx.fill();
-            ctx.strokeStyle = '#111';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            ctx.fillStyle = 'white';
-            ctx.font = `${Math.max(10, Math.floor(bot.radius/3))}px Arial`;
-            ctx.shadowBlur = 0;
-            ctx.fillText(bot.name, bot.x-camera.x - bot.radius/2, bot.y-camera.y - bot.radius/2);
         }
-        // игрок
-        ctx.beginPath();
-        ctx.arc(player.x-camera.x, player.y-camera.y, player.radius, 0, Math.PI*2);
-        ctx.fillStyle = player.color;
-        ctx.fill();
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.fillStyle = 'white';
-        ctx.font = `bold ${Math.max(14, Math.floor(player.radius/3))}px Arial`;
-        ctx.fillText(player.name, player.x-camera.x - player.radius/2, player.y-camera.y - player.radius/2);
+        
+        // Боты
+        for(let bot of botSnakes){
+            if(!bot.isAlive) continue;
+            for(let i=0;i<bot.segments.length;i++){
+                const seg = bot.segments[i];
+                const radius = (i===0) ? 12 : 9;
+                ctx.beginPath();
+                ctx.arc(seg.x-camera.x, seg.y-camera.y, radius, 0, Math.PI*2);
+                ctx.fillStyle = bot.color;
+                ctx.fill();
+                if(i===0){
+                    ctx.fillStyle = 'white';
+                    ctx.font = 'bold 14px Arial';
+                    ctx.shadowBlur = 0;
+                    ctx.fillText(bot.name, seg.x-camera.x-20, seg.y-camera.y-15);
+                    // Глаза
+                    ctx.fillStyle = 'black';
+                    ctx.beginPath();
+                    ctx.arc(seg.x-camera.x-4, seg.y-camera.y-3, 2, 0, Math.PI*2);
+                    ctx.arc(seg.x-camera.x+4, seg.y-camera.y-3, 2, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            }
+        }
+        
+        // Игрок
+        if(player.segments.length){
+            for(let i=0;i<player.segments.length;i++){
+                const seg = player.segments[i];
+                const radius = (i===0) ? 14 : 10;
+                ctx.beginPath();
+                ctx.arc(seg.x-camera.x, seg.y-camera.y, radius, 0, Math.PI*2);
+                ctx.fillStyle = player.color;
+                ctx.fill();
+                if(i===0){
+                    ctx.fillStyle = 'white';
+                    ctx.font = 'bold 16px Arial';
+                    ctx.fillText(player.name, seg.x-camera.x-25, seg.y-camera.y-20);
+                    // Глаза
+                    ctx.fillStyle = '#111';
+                    ctx.beginPath();
+                    ctx.arc(seg.x-camera.x-5, seg.y-camera.y-4, 2.5, 0, Math.PI*2);
+                    ctx.arc(seg.x-camera.x+5, seg.y-camera.y-4, 2.5, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath();
+                    ctx.arc(seg.x-camera.x-5.5, seg.y-camera.y-5, 1, 0, Math.PI*2);
+                    ctx.arc(seg.x-camera.x+4.5, seg.y-camera.y-5, 1, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            }
+        }
         
         drawRadar();
     }
     
     function updateUI(){
-        document.getElementById('playerNameDisplay').innerHTML = `👤 ${player.name}`;
-        document.getElementById('scoreDisplay').innerHTML = `🍎 MASS: ${Math.floor(player.mass)}`;
+        document.getElementById('playerNameDisplay').innerHTML = `🐍 ${player.name}`;
+        document.getElementById('scoreDisplay').innerHTML = `📏 ДЛИНА: ${player.length}`;
         const leaderOl = document.getElementById('leaderList');
         leaderOl.innerHTML = '';
         for(let i=0;i<leaderboardList.length;i++){
             const ent = leaderboardList[i];
             const li = document.createElement('li');
-            li.style.color = ent.isPlayer ? '#ffaa66' : '#ccc';
-            li.innerHTML = `${ent.name} (${ent.mass})`;
+            li.style.color = ent.isPlayer ? '#6fbf4c' : '#ccc';
+            li.innerHTML = `${ent.name} (${ent.length})`;
             leaderOl.appendChild(li);
         }
     }
     
+    // === ГЛАВНЫЙ ЦИКЛ ===
     function gameLoop(){
         if(!gameRunning) return;
-        updatePlayer();
+        
+        updateSnake(player, true);
+        for(let bot of botSnakes){
+            updateSnake(bot, false);
+        }
         handleEat();
         botsEat();
-        updateBots();
-        checkEatBetween();
+        checkSnakeCollisions();
         updateLeaderboard();
         updateCamera();
         updateUI();
         draw();
+        
         requestAnimationFrame(gameLoop);
     }
     
@@ -411,16 +471,8 @@
     }
     
     function startGame(nick){
-        player.name = nick || "Player";
-        player.mass = 30;
-        player.radius = 30;
-        player.x = WORLD_SIZE/2;
-        player.y = WORLD_SIZE/2;
-        player.color = '#ff5566';
-        
+        initPlayer(nick);
         initWorld();
-        mouseX = player.x;
-        mouseY = player.y;
         gameRunning = true;
         document.getElementById('menuOverlay').style.display = 'none';
         resizeCanvas();
@@ -428,13 +480,13 @@
         gameLoop();
     }
     
-    // События мыши
+    // === СОБЫТИЯ МЫШИ ===
     function onMouseMove(e){
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width/rect.width;
         const scaleY = canvas.height/rect.height;
-        let canvasX = (e.clientX - rect.left)*scaleX;
-        let canvasY = (e.clientY - rect.top)*scaleY;
+        let canvasX = (e.clientX - rect.left) * scaleX;
+        let canvasY = (e.clientY - rect.top) * scaleY;
         mouseX = camera.x + canvasX;
         mouseY = camera.y + canvasY;
     }
@@ -445,7 +497,7 @@
         canvas.addEventListener('mousemove',onMouseMove);
         document.getElementById('startBtn').addEventListener('click',()=>{
             let nick = document.getElementById('nicknameInput').value.trim();
-            if(nick==="") nick = "Guest";
+            if(nick==="") nick = "Slither";
             startGame(nick);
         });
     });
