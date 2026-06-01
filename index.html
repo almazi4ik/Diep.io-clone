@@ -1,26 +1,33 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <style>
-        body { margin: 0; overflow: hidden; font-family: monospace; }
-        #ui {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            color: white;
-            z-index: 100;
-            font-size: 20px;
-            text-shadow: 1px 1px 0 black;
-        }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Agar.io — Полная копия</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="ui">
-        <div>Уровень: <span id="level">1</span></div>
-        <div>Очки: <span id="score">0</span></div>
-        <div>HP: <span id="hp">100</span></div>
+
+<div class="menu-overlay" id="menuOverlay">
+    <div class="menu-card">
+        <h1>⚫ AGAR.IO</h1>
+        <input type="text" id="nicknameInput" placeholder="Введите ник..." maxlength="16" autocomplete="off">
+        <br>
+        <button id="startBtn">▶ СТАРТ</button>
+        <div class="menu-hint">Мышь — движение | Радар внизу | Боты настоящие</div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.x/dist/pixi.min.js"></script>
-    <script src="game.js"></script>
+</div>
+
+<div class="game-ui" id="playerNameDisplay">⚡ Загрузка...</div>
+<div class="score-board" id="scoreDisplay">🍎 MASS: 10</div>
+<div class="leaderboard" id="leaderboard">
+    <h3>🏆 ЛИДЕРЫ</h3>
+    <ol id="leaderList"></ol>
+</div>
+<div class="controls-hint">🖱️ Мышь — двигаться | 🔴 Радар в правом нижнем углу</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<script src="game.js"></script>
 </body>
 </html>
