@@ -6,7 +6,7 @@
 }
 
 body {
-    background: #111;
+    background: #0a2f2a;
     overflow: hidden;
     font-family: 'Segoe UI', 'Arial', sans-serif;
 }
@@ -33,19 +33,19 @@ canvas {
 }
 
 .menu-card {
-    background: #1a1a2e;
+    background: #1a3a32;
     padding: 40px 50px;
     border-radius: 20px;
     text-align: center;
-    box-shadow: 0 0 50px rgba(0, 255, 255, 0.3);
-    border: 1px solid #00ccff;
+    box-shadow: 0 0 50px rgba(100, 255, 150, 0.3);
+    border: 1px solid #6fbf4c;
 }
 
 .menu-card h1 {
-    color: #00ccff;
+    color: #6fbf4c;
     font-size: 48px;
     margin-bottom: 30px;
-    text-shadow: 0 0 10px #00ccff;
+    text-shadow: 0 0 10px #6fbf4c;
 }
 
 .menu-card input {
@@ -56,9 +56,9 @@ canvas {
     outline: none;
     width: 260px;
     text-align: center;
-    background: #0f0f1a;
+    background: #0f2a22;
     color: white;
-    border: 1px solid #00ccff;
+    border: 1px solid #6fbf4c;
 }
 
 .menu-card button {
@@ -66,18 +66,18 @@ canvas {
     padding: 12px 32px;
     font-size: 20px;
     font-weight: bold;
-    background: #00ccff;
+    background: #6fbf4c;
     border: none;
     border-radius: 40px;
-    color: #0f0f1a;
+    color: #0f1a12;
     cursor: pointer;
     transition: 0.2s;
 }
 
 .menu-card button:hover {
-    background: #ffaa00;
+    background: #ffaa33;
     transform: scale(1.05);
-    box-shadow: 0 0 20px #ffaa00;
+    box-shadow: 0 0 20px #ffaa33;
 }
 
 .menu-hint {
@@ -116,7 +116,7 @@ canvas {
     backdrop-filter: blur(4px);
     z-index: 10;
     pointer-events: none;
-    border-right: 3px solid #ffaa44;
+    border-right: 3px solid #6fbf4c;
 }
 
 .leaderboard {
@@ -134,7 +134,7 @@ canvas {
     font-size: 14px;
     z-index: 10;
     pointer-events: none;
-    border: 1px solid #555;
+    border: 1px solid #6fbf4c;
 }
 
 .leaderboard h3 {
@@ -163,6 +163,3 @@ canvas {
     color: #ccc;
     z-index: 10;
 }
-
-/* РАДАР (canvas внутри canvas не сделать, но его отрисует game.js в углу) */
-/* Радар рисуется в основном canvas, просто резервируем зону */
